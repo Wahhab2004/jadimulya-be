@@ -1,0 +1,36 @@
+version: "3.9"
+
+# Menjalankan PostgreSQL lokal yang seragam untuk semua developer.
+# Jalankan: docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jadimulya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jadimulya
+      POSTGRES_PASSWORD: jadimulya
+      POSTGRES_DB: jadimulya_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - jadimulya_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jadimulya"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Opsional: GUI ringan untuk inspeksi DB tanpa keluar dari browser.
+  # Alternatif: `npm run prisma:studio`
+  adminer:
+    image: adminer:latest
+    container_name: jadimulya-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  jadimulya_pg_data:

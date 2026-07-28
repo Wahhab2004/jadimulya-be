@@ -1,0 +1,316 @@
+// ============================================================
+// Prisma Schema — Website Desa Jadimulya
+// Disusun mengikuti PRD Jadimulya V3
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+// AUTH
+// ------------------------------------------------------------
+
+enum AdminRole {
+  SUPER_ADMIN // disiapkan untuk Future (multi-role), MVP hanya pakai 1 role
+  ADMIN
+}
+
+model AdminUser {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(ADMIN)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  newsAuthored News[]
+
+  @@map("admin_users")
+}
+
+// ------------------------------------------------------------
+// PROFIL DESA (FR-PUB-01 Homepage, Formulir B.1)
+// ------------------------------------------------------------
+
+model VillageProfile {
+  id             String   @id @default(uuid())
+  villageName    String
+  district       String // Kecamatan
+  regency        String   @default("Pangandaran")
+  province       String   @default("Jawa Barat")
+  officeAddress  String?
+  phone          String?
+  email          String?
+  areaSize       Decimal? @db.Decimal(10, 2) // Luas Wilayah, ganti "Lahan Produktif"
+  areaUnit       String   @default("Ha")
+  elevationMdpl  Decimal? @db.Decimal(10, 2)
+  borderNorth    String?
+  borderSouth    String?
+  borderEast     String?
+  borderWest     String?
+  vision         String?  @db.Text
+  mission        String?  @db.Text
+  slogan         String   @default("Desa Jadimulya anu lewih waluya")
+  logoRegencyUrl String? // Logo Kabupaten Pangandaran
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("village_profile")
+}
+
+// Foto hero slider homepage (3-5 foto, efek tempo jadul/klasik)
+model HeroSlide {
+  id        String   @id @default(uuid())
+  imageUrl  String
+  caption   String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("hero_slides")
+}
+
+// ------------------------------------------------------------
+// STRUKTUR ORGANISASI / SOTK (FR-PUB-02, FR-ADM-02, Formulir B.2)
+// ------------------------------------------------------------
+
+enum OfficialTier {
+  KEPALA_DESA // kartu terpisah, posisi utama
+  SEKDES_BPD // Sekretaris Desa & Ketua BPD, baris kedua
+  STAFF // Kaur / Kasi / Kepala Dusun
+}
+
+model Official {
+  id           String       @id @default(uuid())
+  fullName     String
+  position     String // Jabatan
+  division     String? // Bidang/Seksi
+  tier         OfficialTier @default(STAFF)
+  photoUrl     String?
+  email        String?
+  phone        String? // Telepon/WhatsApp
+  facebookUrl  String? // media sosial, khususnya Facebook
+  sortOrder    Int          @default(0)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // NB: kolom NIP sengaja TIDAK ada — sudah diputuskan dihapus (rapat 16/07)
+
+  @@map("officials")
+}
+
+// ------------------------------------------------------------
+// POTENSI DESA (FR-PUB-03, FR-ADM-03, Formulir B.3)
+// ------------------------------------------------------------
+
+// BARU — kategori sekarang dinamis (dulu enum tetap PERTANIAN/PARIWISATA/UMKM
+// yang butuh migrasi tiap kali admin mau nambah kategori baru). isPublic
+// menggantikan logic lama MVP_ACTIVE_CATEGORIES yang nge-hardcode kategori
+// mana yang tampil di publik — sekarang admin yang atur sendiri per kategori.
+model PotentialCategory {
+  id        String   @id @default(uuid())
+  name      String
+  isPublic  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  potentials Potential[]
+
+  @@unique([name])
+  @@map("potential_categories")
+}
+
+model Potential {
+  id          String            @id @default(uuid())
+  name        String
+  categoryId  String
+  category    PotentialCategory @relation(fields: [categoryId], references: [id])
+  shortDesc   String            @db.Text
+  fullDesc    String?           @db.Text
+  coverImage  String?
+  isHighlight Boolean           @default(false) // tampil di homepage (pilihan admin)
+  isActive    Boolean           @default(true)
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  images PotentialImage[]
+
+  @@map("potentials")
+}
+
+model PotentialImage {
+  id          String    @id @default(uuid())
+  potentialId String
+  potential   Potential @relation(fields: [potentialId], references: [id], onDelete: Cascade)
+  imageUrl    String
+  sortOrder   Int       @default(0)
+
+  @@map("potential_images")
+}
+
+// ------------------------------------------------------------
+// SEJARAH DESA (FR-PUB-04, FR-ADM-04, Formulir B.4)
+// CMS-editable penuh oleh admin (tanpa developer)
+// ------------------------------------------------------------
+
+model HistoryNarrative {
+  id        String   @id @default(uuid())
+  // Narasi disimpan berjenjang: section + urutan, agar bisa membentuk
+  // daftar isi (TOC) interaktif di sisi publik.
+  sectionTitle String
+  content      String  @db.Text
+  sortOrder    Int     @default(0)
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@map("history_narratives")
+}
+
+model HistoryMilestone {
+  id          String   @id @default(uuid())
+  year        Int // dimulai dari 1928
+  title       String
+  description String?  @db.Text
+  photoUrl    String? // foto kepala desa/kuwu terdahulu (opsional)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("history_milestones")
+}
+
+// ------------------------------------------------------------
+// DEMOGRAFI + KEPENDUDUKAN (FR-PUB-05, FR-ADM-05, Formulir B.5)
+// ------------------------------------------------------------
+
+// CATATAN: totalPopulation/totalFamilies/maleCount/femaleCount di tabel ini
+// SUDAH TIDAK jadi sumber data endpoint ringkasan lagi — sejak update,
+// GET /demografi/ringkasan menghitung otomatis (agregasi) dari DusunStat,
+// jadi tidak perlu PATCH manual. Model & tabel ini dibiarkan ada untuk
+// kompatibilitas data lama (khususnya kolom farmerCount/dst di bawah) dan
+// bisa dihapus lewat migrasi terpisah setelah dipastikan tidak dipakai lagi.
+model DemographicSummary {
+  id             String   @id @default(uuid())
+  totalPopulation Int
+  totalFamilies   Int // Kepala Keluarga
+  maleCount       Int
+  femaleCount     Int
+  dataYear        Int // Data Tahun (sumber BPS)
+
+  // Rincian per jenis pekerjaan — menggantikan grafik "Tingkat Pendidikan"
+  // CATATAN: 5 kolom tetap di bawah ini sudah TIDAK dipakai oleh admin panel
+  // (lihat OccupationStat, tabel dinamis yang sekarang jadi sumber data
+  // grafik "Jenis Pekerjaan"). Dibiarkan ada dulu untuk kompatibilitas data
+  // lama — bisa dihapus lewat migrasi terpisah setelah dipastikan tidak
+  // dipakai di tempat lain.
+  farmerCount    Int @default(0) // Petani
+  traderCount    Int @default(0) // Pedagang/UMKM
+  civilServant   Int @default(0) // PNS/Pegawai
+  laborerCount   Int @default(0) // Buruh
+  otherJobCount  Int @default(0) // Lainnya
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("demographic_summary")
+}
+
+// Rincian per Dusun (Formulir B.5, tabel ketiga)
+model DusunStat {
+  id         String   @id @default(uuid())
+  dusunName  String
+  totalKK    Int
+  maleCount  Int
+  femaleCount Int
+  dataYear   Int
+  sortOrder  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@unique([dusunName, dataYear])
+  @@map("dusun_stats")
+}
+
+
+model AgeGroupStat {
+  id        String   @id @default(uuid())
+  label     String // cth. "0-4", "25-34"
+  value     Int      @default(0)
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([label])
+  @@map("age_group_stats")
+}
+
+model OccupationStat {
+  id        String   @id @default(uuid())
+  label     String // cth. "Petani", "Pedagang"
+  value     Int      @default(0)
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([label])
+  @@map("occupation_stats")
+}
+
+// ------------------------------------------------------------
+// BERITA / NEWS (FR-ADM-06, Formulir B.6)
+// ------------------------------------------------------------
+
+enum NewsCategory {
+  PEMBANGUNAN
+  KESEHATAN
+  PERTANIAN
+  WISATA
+  LAINNYA
+}
+
+model News {
+  id          String       @id @default(uuid())
+  title       String
+  slug        String       @unique
+  category    NewsCategory
+  excerpt     String?      @db.Text
+  content     String       @db.Text
+  coverImage  String?
+  isPublished Boolean      @default(true)
+  publishedAt DateTime     @default(now())
+  authorId    String?
+  author      AdminUser?   @relation(fields: [authorId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("news")
+}
+
+// ------------------------------------------------------------
+// MEDIA LIBRARY (FR-ADM-07 Upload Media Dasar)
+// ------------------------------------------------------------
+
+model Media {
+  id         String   @id @default(uuid())
+  fileName   String
+  url        String
+  mimeType   String
+  sizeBytes  Int
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+
+  @@map("media")
+}
