@@ -6,11 +6,12 @@ import { prisma } from '../../config/prisma';
 import { LoginInput } from './auth.schema';
 
 function signTokens(adminId: string, role: string) {
-  const accessToken = jwt.sign({ sub: adminId, role }, env.JWT_ACCESS_SECRET, {
-    expiresIn: env.JWT_ACCESS_EXPIRES,
+  const payload = { sub: adminId, role };
+  const accessToken = jwt.sign(payload, process.env.JWT_ACCESS_SECRET as string, {
+    expiresIn: process.env.JWT_ACCESS_EXPIRES as jwt.SignOptions['expiresIn'],
   });
-  const refreshToken = jwt.sign({ sub: adminId, role }, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRES,
+  const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET as string, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES as jwt.SignOptions['expiresIn'],
   });
   return { accessToken, refreshToken };
 }
@@ -48,8 +49,8 @@ export async function refreshAccessToken(refreshToken: string) {
       sub: string;
       role: string;
     };
-    const accessToken = jwt.sign({ sub: payload.sub, role: payload.role }, env.JWT_ACCESS_SECRET, {
-      expiresIn: env.JWT_ACCESS_EXPIRES,
+    const accessToken = jwt.sign({ sub: payload.sub, role: payload.role }, env.JWT_ACCESS_SECRET as string, {
+      expiresIn: env.JWT_ACCESS_EXPIRES as jwt.SignOptions['expiresIn'],
     });
     return { accessToken };
   } catch {
