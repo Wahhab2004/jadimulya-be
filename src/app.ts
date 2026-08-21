@@ -13,20 +13,47 @@ import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 export function createApp(): Application {
   const app = express();
 
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://jadimulya-pangandaran.id',
+    'https://www.jadimulya-pangandaran.id',
+  ];
+
   app.set('trust proxy', 1);
 
-  // --- Security & parsing dasar ---
+  // --- Security & CORS ---
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Izinkan request tanpa Origin
+        // (misalnya server-to-server, Postman, curl)
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(new Error('Not allowed by CORS'));
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    }),
+  );
+
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+
+  // --- Parsing dasar ---
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
-  
 
   // --- Logging ---
   app.use(morgan(env.NODE_ENV === 'development' ? 'dev' : 'combined'));
 
-  // --- Rate limiting dasar (NFR-04 Security) ---
+  // --- Rate limiting ---
   app.use(
     rateLimit({
       windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -39,13 +66,18 @@ export function createApp(): Application {
   // --- File statis hasil upload ---
   app.use('/uploads', express.static(path.resolve(process.cwd(), env.UPLOAD_DIR)));
 
-  // --- Health check (dipakai load balancer / uptime monitor) ---
-  app.get('/health', (_req, res) => res.json({ status: 'ok', env: env.NODE_ENV }));
+  // --- Health check ---
+  app.get('/health', (_req, res) =>
+    res.json({
+      status: 'ok',
+      env: env.NODE_ENV,
+    }),
+  );
 
   // --- API routes ---
   app.use('/api/v1', routes);
 
-  // --- 404 & error handler (WAJIB paling akhir) ---
+  // --- Error handler ---
   app.use(notFoundHandler);
   app.use(errorHandler);
 
